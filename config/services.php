@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'swapi' => [
+        'base_url' => env('SWAPI_BASE_URL', 'https://swapi.py4e.com/api'),
+        'timeout' => (int) env('SWAPI_TIMEOUT', 10),
+    ],
+
 ];
