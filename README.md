@@ -211,9 +211,30 @@ Por qué no más: buena parte del código lo escribió una IA y todavía lo esto
 
 ### 9. Tiempo invertido
 
-Unas 2,5 horas de trabajo con la IA, repartidas en dos sesiones:
+En total, unas **2,5 horas de trabajo con la IA**, repartidas en dos sesiones, más el tiempo que dediqué por mi cuenta a revisar y estudiar el código.
 
-- ~1 h 20 min (15/11): instalar PHP y Composer, generar el proyecto, probarlo en el navegador y en Docker con MySQL, y corregir los dos bugs que solo aparecían en Linux.
-- ~1 h (16/11): simplificar el código para que fuera más fácil de leer y modificar, volver a probarlo y actualizar este README.
+| Fecha | Tiempo aprox. | Qué hice |
+|---|---|---|
+| 15/11 | ~20 min | Preparar el entorno: instalar PHP y Composer en Windows, crear el proyecto Laravel y configurar Vue 3, Inertia y Tailwind. |
+| 15/11 | ~40 min | Construir la aplicación: migración y modelo, CRUD, importación desde SWAPI, modal, componentes reutilizables, paginación, búsqueda y orden. |
+| 15/11 | ~20 min | Probarla en Docker con MySQL y corregir dos bugs que solo aparecían en Linux (dependencias de desarrollo que faltaban y la configuración de base de datos que no llegaba al servidor web). |
+| 16/11 | ~40 min | Simplificar el código: quitar el comando de consola y la CI, juntar la lógica repetida y dejar cada archivo con una sola responsabilidad, para que sea fácil de leer y de modificar. |
+| 16/11 | ~20 min | Volver a probar todo y actualizar este README. |
 
-Aparte, tiempo revisando y estudiando el código para poder explicarlo.
+**Pruebas realizadas**
+
+- **Automáticas:** 47 tests de PHPUnit (206 comprobaciones) que se ejecutan en unos 2 segundos con `php artisan test`. Usan SQLite en memoria, así que no tocan la base de datos real, y `Http::fake()` para simular las respuestas de SWAPI, así que no dependen de que la API esté en línea. Cubren:
+  - El CRUD completo: crear, editar, eliminar y listar.
+  - Las validaciones: campos obligatorios, números fuera de rango y valores no válidos.
+  - La paginación de 10 en 10, la búsqueda, el filtro por género y el orden por columnas.
+  - La importación: un ID válido, un ID fuera de 1–83, un personaje duplicado, la restauración de uno eliminado y los fallos de SWAPI (404, tiempo de espera agotado, error 500 y respuesta con formato inesperado).
+  - La limpieza de datos de SWAPI: valores como "unknown" o "1,358" y la traducción del género.
+- **Manuales en el navegador** (en local contra el MySQL de Docker):
+  - Crear, editar y eliminar personajes.
+  - Importar uno real desde SWAPI, intentar importarlo otra vez y comprobar que sale el mensaje de error.
+  - Buscar, filtrar, ordenar y pasar de página.
+  - Revisar los estados de carga, los mensajes de éxito y error, el modo oscuro y la vista en móvil.
+- **Con Docker:** levantar el proyecto desde cero con `docker compose up --build` para comprobar que arranca con solo seguir las instrucciones de este README.
+- **Compilación del frontend:** `npm run build` sin errores ni advertencias.
+
+Aparte, dediqué tiempo a leer el código archivo por archivo y a practicar cambios pequeños, para poder explicarlo y modificarlo en la entrevista.
