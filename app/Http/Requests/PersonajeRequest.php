@@ -13,13 +13,6 @@ class PersonajeRequest extends FormRequest
         return true;
     }
 
-    protected function prepareForValidation(): void
-    {
-        $this->merge(collect($this->only([
-            'nombre', 'color_cabello', 'color_ojos', 'planeta_origen',
-        ]))->map(fn ($valor) => is_string($valor) ? trim($valor) : $valor)->all());
-    }
-
     public function rules(): array
     {
         return [

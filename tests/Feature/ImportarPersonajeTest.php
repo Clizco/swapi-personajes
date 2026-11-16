@@ -153,18 +153,4 @@ class ImportarPersonajeTest extends TestCase
 
         $this->assertDatabaseHas('personajes', ['swapi_id' => 1, 'planeta_origen' => null]);
     }
-
-    public function test_el_comando_artisan_importa_varios_personajes(): void
-    {
-        $this->simularSwapiFuncionando();
-        Personaje::factory()->desdeSwapi(2)->create();
-
-        $this->artisan('swapi:importar', ['ids' => [1, 2, 99]])
-            ->expectsOutputToContain('[1] Luke Skywalker importado.')
-            ->expectsOutputToContain('[2] El personaje con ID 2 de SWAPI ya fue importado.')
-            ->expectsOutputToContain('[99] Fuera de rango')
-            ->assertSuccessful();
-
-        $this->assertDatabaseHas('personajes', ['swapi_id' => 1]);
-    }
 }

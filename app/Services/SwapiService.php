@@ -4,31 +4,24 @@ namespace App\Services;
 
 use App\Exceptions\SwapiException;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
+/**
+ * Habla con la API de SWAPI y traduce sus datos (inglés) a nuestros campos (español).
+ */
 class SwapiService
 {
-    private const VALORES_DESCONOCIDOS = ['unknown', 'n/a', ''];
-
-    private const MAPA_GENEROS = [
+    private const GENEROS = [
         'male' => 'masculino',
         'female' => 'femenino',
     ];
 
-    public function __construct(
-        private readonly string $urlBase,
-        private readonly int $timeoutEnSegundos,
-    ) {}
-
     public function obtenerPersonaje(int $swapiId): array
     {
-        $datos = $this->consultar("people/{$swapiId}/", $swapiId);
+        $datos = $this->get(config('services.swapi.base_url')."/people/{$swapiId}/", $swapiId);
 
         if (! isset($datos['name'])) {
-            throw SwapiException::respuestaInvalida();
+            throw new SwapiException('SWAPI devolvió una respuesta con un formato inesperado.');
         }
 
         return [
@@ -41,86 +34,73 @@ class SwapiService
     public function mapearPersonaje(array $datos): array
     {
         return [
-            'nombre' => Str::limit(trim($datos['name']), 100, ''),
-            'altura' => $this->convertirAEntero($datos['height'] ?? null, 300),
-            'masa' => $this->convertirAEntero($datos['mass'] ?? null, 500),
-            'color_cabello' => $this->limpiarTexto($datos['hair_color'] ?? null),
-            'color_ojos' => $this->limpiarTexto($datos['eye_color'] ?? null),
-            'genero' => self::MAPA_GENEROS[strtolower(trim($datos['gender'] ?? ''))] ?? 'n/a',
+            'nombre' => mb_substr(trim($datos['name']), 0, 100),
+            'altura' => $this->aEntero($datos['height'] ?? null, 300),
+            'masa' => $this->aEntero($datos['mass'] ?? null, 500),
+            'color_cabello' => $this->aTexto($datos['hair_color'] ?? null),
+            'color_ojos' => $this->aTexto($datos['eye_color'] ?? null),
+            'genero' => self::GENEROS[strtolower($datos['gender'] ?? '')] ?? 'n/a',
         ];
     }
 
-    private function consultar(string $ruta, int $swapiId): array
+    private function get(string $url, int $swapiId): array
     {
         try {
-            $respuesta = $this->cliente()->get($ruta);
-        } catch (ConnectionException $excepcion) {
-            Log::warning('SWAPI no disponible', ['ruta' => $ruta, 'error' => $excepcion->getMessage()]);
-
-            throw SwapiException::sinConexion();
+            $respuesta = Http::acceptJson()->timeout(config('services.swapi.timeout'))->get($url);
+        } catch (ConnectionException) {
+            throw new SwapiException('No se pudo conectar con SWAPI (tiempo de espera agotado o servicio caído). Intenta nuevamente en unos minutos.');
         }
 
         if ($respuesta->notFound()) {
-            throw SwapiException::personajeNoEncontrado($swapiId);
+            throw new SwapiException("No existe un personaje con el ID {$swapiId} en SWAPI.");
         }
 
         if ($respuesta->failed()) {
-            Log::warning('SWAPI respondió con error', ['ruta' => $ruta, 'status' => $respuesta->status()]);
-
-            throw SwapiException::errorDelServidor($respuesta->status());
+            throw new SwapiException("SWAPI respondió con un error ({$respuesta->status()}). Intenta nuevamente más tarde.");
         }
 
-        $datos = $respuesta->json();
-
-        if (! is_array($datos)) {
-            throw SwapiException::respuestaInvalida();
-        }
-
-        return $datos;
+        return $respuesta->json() ?? [];
     }
 
-    private function obtenerNombrePlaneta(?string $urlPlaneta): ?string
+    // Si el planeta falla, importamos igual al personaje, solo que sin planeta.
+    private function obtenerNombrePlaneta(?string $url): ?string
     {
-        if (! $urlPlaneta || ! Str::startsWith($urlPlaneta, rtrim($this->urlBase, '/').'/planets/')) {
+        if (! $url) {
             return null;
         }
 
         try {
-            $respuesta = $this->cliente()->get($urlPlaneta);
+            $respuesta = Http::acceptJson()->timeout(config('services.swapi.timeout'))->get($url);
         } catch (ConnectionException) {
             return null;
         }
 
-        return $respuesta->successful() ? $this->limpiarTexto($respuesta->json('name')) : null;
+        return $respuesta->successful() ? $this->aTexto($respuesta->json('name')) : null;
     }
 
-    private function cliente(): PendingRequest
+    // "77" -> 77, "78.2" -> 78, "unknown" -> null, "1,358" -> null (pasa el máximo).
+    private function aEntero(?string $valor, int $maximo): ?int
     {
-        return Http::baseUrl($this->urlBase)
-            ->acceptJson()
-            ->timeout($this->timeoutEnSegundos)
-            ->retry(2, 300, fn ($excepcion) => $excepcion instanceof ConnectionException, throw: false);
-    }
+        $valor = str_replace(',', '', (string) $valor);
 
-    private function convertirAEntero(?string $valor, int $maximo): ?int
-    {
-        $valorLimpio = str_replace(',', '', trim((string) $valor));
-
-        if (! is_numeric($valorLimpio)) {
+        if (! is_numeric($valor)) {
             return null;
         }
 
-        $numero = (int) round((float) $valorLimpio);
+        $numero = (int) round((float) $valor);
 
         return $numero >= 1 && $numero <= $maximo ? $numero : null;
     }
 
-    private function limpiarTexto(mixed $valor): ?string
+    // "unknown", "n/a" y "" se guardan como null.
+    private function aTexto(?string $valor): ?string
     {
-        if (! is_string($valor) || in_array(strtolower(trim($valor)), self::VALORES_DESCONOCIDOS, true)) {
+        $valor = trim((string) $valor);
+
+        if (in_array(strtolower($valor), ['unknown', 'n/a', ''], true)) {
             return null;
         }
 
-        return Str::limit(trim($valor), 100, '');
+        return mb_substr($valor, 0, 100);
     }
 }

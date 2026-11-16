@@ -5,64 +5,54 @@ namespace App\Services;
 use App\Exceptions\SwapiException;
 use App\Models\Personaje;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\UniqueConstraintViolationException;
 
+/**
+ * Lógica de personajes que no es un simple create/update/delete:
+ * el listado con filtros y la importación desde SWAPI.
+ */
 class PersonajeService
 {
-    public const POR_PAGINA = 10;
-
-    public function __construct(private readonly SwapiService $swapi) {}
+    public function __construct(private SwapiService $swapi) {}
 
     public function listar(array $filtros): LengthAwarePaginator
     {
-        $columna = in_array($filtros['orden'] ?? null, Personaje::COLUMNAS_ORDENABLES, true)
+        $buscar = $filtros['buscar'] ?? null;
+        $genero = $filtros['genero'] ?? null;
+
+        // Solo dejamos ordenar por columnas conocidas (nunca por texto libre del usuario).
+        $orden = in_array($filtros['orden'] ?? null, Personaje::COLUMNAS_ORDENABLES)
             ? $filtros['orden']
             : 'created_at';
         $direccion = ($filtros['direccion'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 
         return Personaje::query()
-            ->buscarPorNombre($filtros['buscar'] ?? null)
-            ->delGenero($filtros['genero'] ?? null)
-            ->orderBy($columna, $direccion)
+            ->when($buscar, fn ($query) => $query->where('nombre', 'like', "%{$buscar}%"))
+            ->when($genero, fn ($query) => $query->where('genero', $genero))
+            ->orderBy($orden, $direccion)
             ->orderBy('id', $direccion)
-            ->paginate(self::POR_PAGINA)
+            ->paginate(10)
             ->withQueryString();
-    }
-
-    public function crear(array $datos): Personaje
-    {
-        return Personaje::create($datos);
-    }
-
-    public function actualizar(Personaje $personaje, array $datos): Personaje
-    {
-        $personaje->update($datos);
-
-        return $personaje;
-    }
-
-    public function eliminar(Personaje $personaje): void
-    {
-        $personaje->delete();
     }
 
     public function importarDesdeSwapi(int $swapiId): Personaje
     {
-        if (Personaje::where('swapi_id', $swapiId)->exists()) {
-            throw SwapiException::personajeYaImportado($swapiId);
+        // withTrashed() también encuentra a los eliminados (soft delete).
+        $existente = Personaje::withTrashed()->where('swapi_id', $swapiId)->first();
+
+        if ($existente && ! $existente->trashed()) {
+            throw new SwapiException('Este personaje de SWAPI ya fue importado.');
         }
 
         $datos = $this->swapi->obtenerPersonaje($swapiId);
 
-        try {
-            $personaje = Personaje::onlyTrashed()->firstOrNew(['swapi_id' => $swapiId]);
-            $personaje->fill([...$datos, 'origen_swapi' => true]);
-            $personaje->deleted_at = null;
-            $personaje->save();
-        } catch (UniqueConstraintViolationException) {
-            throw SwapiException::personajeYaImportado($swapiId);
+        // Si estaba eliminado, lo restauramos con los datos frescos en vez de crear otro.
+        if ($existente) {
+            $existente->restore();
+            $existente->update($datos);
+
+            return $existente;
         }
 
-        return $personaje;
+        return Personaje::create([...$datos, 'origen_swapi' => true]);
     }
 }

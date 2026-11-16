@@ -23,7 +23,6 @@ defineProps({
             metodo="put"
             :url="`/personajes/${personaje.id}`"
             texto-boton="Actualizar"
-            texto-procesando="Actualizando…"
         />
     </AppLayout>
 </template>

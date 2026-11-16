@@ -82,37 +82,28 @@ php artisan test
 
 Las pruebas usan SQLite en memoria y simulan SWAPI con `Http::fake()`, así que no necesitan MySQL ni conexión a internet.
 
-### Importar varios personajes por consola
-
-```bash
-php artisan swapi:importar 1 4 10
-php artisan swapi:importar --desde=1 --hasta=20
-```
-
 ## Funcionalidades Implementadas
 
 Obligatorias:
 - CRUD completo de personajes (`/personajes`, `/personajes/crear`, `/personajes/{id}/editar`, `PUT` y `DELETE`)
 - Integración con SWAPI (`POST /personajes/importar`) con mapeo inglés → español y bloqueo de duplicados
-- Validaciones backend (Form Requests) y frontend (antes de enviar), con mensajes en español
+- Validaciones con Form Requests y mensajes en español, mostradas debajo de cada campo
 - Paginación de 10 por página
 - Componentes Vue reutilizables (`<script setup>` + `useForm()`)
-- Diseño responsive: tabla en escritorio y tarjetas en móvil
+- Diseño responsive (en móvil la tabla se desliza horizontalmente)
 - Estados de carga (spinners, botones deshabilitados) y mensajes de éxito/error
 
 Bonus:
 - Service Layer: `PersonajeService` y `SwapiService`
-- Pruebas automatizadas: 48 tests (feature + unit) con PHPUnit
+- Pruebas automatizadas: 47 tests (feature + unit) con PHPUnit
 - Soft Deletes (un personaje de SWAPI eliminado se puede volver a importar y se restaura)
-- Comando Artisan `swapi:importar` para importar varios personajes
 - Búsqueda en tiempo real por nombre (con debounce de 350 ms)
 - Filtro por género
 - Ordenamiento de la tabla (nombre, altura, masa, género)
-- Animaciones con Tailwind (modales, toasts, entrada de páginas)
+- Animaciones con Tailwind (modal, mensajes, entrada de páginas)
 - Dark mode (respeta la preferencia del sistema y se recuerda en `localStorage`)
 - Docker Compose funcional (app + MySQL)
 - Seeders con datos de prueba (factory con 25 personajes)
-- GitHub Actions: corre las pruebas en SQLite y en MySQL en cada push
 
 ## Tecnologías
 
@@ -127,8 +118,7 @@ Bonus:
 
 - **Datos de SWAPI que no encajan en las reglas.** Algunos personajes traen valores como `"unknown"` o `"1,358"` (la masa de Jabba). El servicio quita el separador de miles y redondea decimales. Si el valor no es numérico o queda fuera del rango permitido (altura 1–300, masa 1–500), lo guarda como `null`. Así todo lo importado cumple las mismas reglas que un registro manual y se puede editar sin errores de validación.
 - **Géneros fuera del mapeo.** SWAPI también devuelve `hermaphrodite` o `none`. Como `genero` solo acepta `masculino`, `femenino` o `n/a`, cualquier valor distinto de `male`/`female` se guarda como `n/a`.
-- **Planeta de origen.** SWAPI devuelve una URL en `homeworld`, así que se hace una segunda consulta para obtener el nombre del planeta. Si esa consulta falla, el personaje se importa igual, con `planeta_origen = null`. Solo se siguen URLs que empiezan con la URL base configurada.
-- **Personajes inexistentes.** El ID 17 no existe en SWAPI (devuelve 404); la app lo informa en el modal.
+- **Planeta de origen.** SWAPI devuelve una URL en `homeworld`, así que se hace una segunda consulta para obtener el nombre del planeta. Si esa consulta falla, el personaje se importa igual, con `planeta_origen = null`.- **Personajes inexistentes.** El ID 17 no existe en SWAPI (devuelve 404); la app lo informa en el modal.
 - La URL de SWAPI y el timeout se configuran en `.env` con `SWAPI_BASE_URL` y `SWAPI_TIMEOUT`.
 
 ---
@@ -137,23 +127,22 @@ Bonus:
 
 ### 1. Organización del código backend
 
-Usé controladores delgados con una capa de servicios:
+Busqué que fuera simple de leer y de modificar, con una capa de servicios solo donde hay lógica de verdad:
 
-- `PersonajeController` solo recibe la petición, delega y devuelve la respuesta (página Inertia o redirect con mensaje flash).
-- `PersonajeRequest` e `ImportarPersonajeRequest` (Form Requests) concentran las validaciones.
-- `PersonajeService` tiene la lógica de negocio: listar con filtros, orden y paginación; crear, actualizar y eliminar; e importar desde SWAPI, incluida la regla de no duplicar y la restauración de registros eliminados.
-- `SwapiService` es lo único que sabe hablar con SWAPI: hace la petición HTTP con timeout y reintentos, traduce los campos al español y convierte los errores en una `SwapiException` con mensajes claros. Se registra como singleton en `AppServiceProvider` con la URL y el timeout de `config/services.php`.
-- El modelo `Personaje` define los géneros válidos, las columnas ordenables y dos scopes (`buscarPorNombre`, `delGenero`).
+- `PersonajeController`: recibe la petición y devuelve la respuesta (página Inertia o redirect con mensaje flash). Crear, editar y eliminar son una línea de Eloquent cada uno, así que van directo en el controlador.
+- `PersonajeRequest` e `ImportarPersonajeRequest` (Form Requests): todas las validaciones.
+- `PersonajeService`: lo que no es un simple CRUD. `listar()` aplica búsqueda, filtro por género, orden y paginación; `importarDesdeSwapi()` evita duplicados, restaura un personaje eliminado si se vuelve a importar y crea el registro.
+- `SwapiService`: lo único que habla con SWAPI. Hace la petición HTTP con timeout, traduce los campos al español y convierte cada error en una `SwapiException` con un mensaje claro. Lee la URL y el timeout de `config/services.php`.
+- El modelo `Personaje` define los campos asignables, los géneros válidos y las columnas por las que se puede ordenar.
 
-Esta separación sirve para reutilizar la importación tanto desde el controlador como desde el comando Artisan, y para probar el mapeo de SWAPI de forma aislada. No usé Repository Pattern porque Eloquent ya cumple ese papel y, en una app de este tamaño, agregaría una capa sin beneficio real.
+Así, si mañana cambia la API, solo se toca `SwapiService`, y el mapeo se puede probar de forma aislada. No usé Repository Pattern porque Eloquent ya cumple ese papel y, en una app de este tamaño, agregaría una capa sin beneficio real.
 
 ### 2. Componentes Vue
 
-- `PersonajeForm.vue`: un solo formulario para crear y editar. Recibe el personaje inicial, el método (`post`/`put`), la URL y el texto del botón. Dentro maneja `useForm()`, la validación del frontend y los errores del backend.
-- `PersonajeTable.vue`: muestra la lista como tabla en escritorio y como tarjetas en móvil. No hace peticiones: emite eventos (`ordenar`, `eliminar`), así que se puede usar con cualquier lista.
+- `PersonajeForm.vue`: un solo formulario para crear y editar. Recibe el personaje inicial, el método (`post`/`put`), la URL y el texto del botón. Dentro maneja `useForm()` y muestra los errores que devuelve Laravel.
+- `PersonajeTable.vue`: muestra la lista. No hace peticiones: emite eventos (`ordenar`, `eliminar`) y la página decide qué hacer.
 - `ImportModal.vue`: modal con su propio `useForm()` para importar desde SWAPI, con estado de carga y errores.
-- `BaseModal.vue`: modal genérico (Teleport, animación, cierre con Esc o clic afuera, bloqueo mientras procesa). Lo usan `ImportModal` y `ConfirmDialog`.
-- `ConfirmDialog.vue`: confirmación genérica, aquí para eliminar, pero sirve para cualquier acción destructiva.
+- `BaseModal.vue`: modal genérico (Teleport, animación, cierre con Esc o clic afuera, bloqueo mientras procesa). Lo usa `ImportModal` y sirve para cualquier otro modal.
 - `Pagination.vue`: recibe directamente el paginador de Laravel.
 - `BaseButton.vue`, `CampoFormulario.vue`, `Spinner.vue` y `FlashMessage.vue`: piezas de UI comunes (botón con variantes y estado de carga, label + input + error, indicador de carga y toast de mensajes).
 - `AppLayout.vue`: layout con cabecera, título, slot de acciones y modo oscuro.
@@ -164,23 +153,25 @@ Son reutilizables porque reciben todo por props, comunican hacia afuera con even
 
 Todo está en `SwapiService` y se traduce a `SwapiException`, que el controlador muestra en el modal como error del campo `swapi_id`:
 
-- **Timeout o API caída:** timeout configurable (10 s por defecto) y 2 reintentos solo ante errores de conexión. Si siguen fallando, se muestra "No se pudo conectar con SWAPI…" y se registra en el log.
+- **Timeout o API caída:** timeout configurable (10 s por defecto). Si no responde, se muestra "No se pudo conectar con SWAPI…".
 - **ID inexistente (404):** "No existe un personaje con el ID X en SWAPI."
 - **Errores 4xx/5xx:** mensaje con el código HTTP.
-- **Respuesta con formato inesperado** (no es JSON o no trae `name`): mensaje específico.
-- **ID inválido o duplicado:** se rechaza en el Form Request antes de llamar a la API (entero entre 1 y 83, `swapi_id` único). Además, el servicio vuelve a comprobarlo y captura la violación del índice único por si llegan dos peticiones a la vez.
+- **Respuesta con formato inesperado** (no trae `name`): mensaje específico.
+- **ID inválido:** el Form Request lo rechaza antes de llamar a la API (entero entre 1 y 83).
+- **Duplicado:** `PersonajeService` revisa si ya existe ese `swapi_id` antes de llamar a la API. La columna además tiene un índice único en la base de datos como última protección.
 - **Falla al consultar el planeta:** no bloquea la importación; ese campo queda vacío.
 
 Cada caso tiene su prueba en `tests/Feature/ImportarPersonajeTest.php`, que simula SWAPI con `Http::fake()`.
 
 ### 4. Validaciones
 
-En dos capas:
+Las reglas viven en un solo lugar, el backend:
 
-- **Backend (fuente de verdad):** Form Requests con todas las reglas de la prueba, mensajes en español (`lang/es/validation.php`) y `trim` de los textos antes de validar. Con `validated()` solo se guardan los campos permitidos, así que nadie puede cambiar `origen_swapi` o `swapi_id` desde el formulario.
-- **Frontend:** `PersonajeForm` e `ImportModal` revisan obligatorios, longitudes y rangos antes de enviar, para dar respuesta inmediata sin ir al servidor. Los errores se escriben con `form.setError()`, así que se ven igual que los del backend.
+- **Form Requests** con todas las reglas de la prueba y mensajes en español (`lang/es/validation.php`). Laravel ya recorta los espacios de los textos (middleware `TrimStrings`) y convierte los campos vacíos en `null`.
+- Con `validated()` solo se guardan los campos permitidos, así que nadie puede cambiar `origen_swapi` o `swapi_id` desde el formulario.
+- **En el frontend**, `useForm()` de Inertia recibe los errores automáticamente y cada campo los muestra debajo con `CampoFormulario`.
 
-Elegí esta estrategia porque la validación del cliente se puede saltar fácilmente, así que la del servidor es obligatoria. La del cliente solo mejora la experiencia.
+Elegí no duplicar las reglas en JavaScript: la validación del cliente se puede saltar, así que la del servidor es obligatoria, y tenerla en un solo sitio evita que las dos se desincronicen cuando cambia una regla. Con Inertia el error llega al instante y sin recargar la página.
 
 ### 5. Mayor dificultad
 
@@ -194,7 +185,8 @@ También había que decidir cómo convivían el soft delete y el `swapi_id` úni
 <!-- Revisa y ajusta esta respuesta con tus propias palabras -->
 Sí. Usé Claude (Claude Code) para generar la mayor parte del código: estructura del backend, servicios, componentes Vue, pruebas, Docker y este README. Para comprobar que funcionaba:
 
-- Corrí la suite de pruebas (48 tests) que cubre CRUD, validaciones, todos los errores de SWAPI y el comando Artisan.
+- Corrí la suite de pruebas (47 tests) que cubre CRUD, validaciones y todos los errores de SWAPI.
+- Le pedí simplificar el código (validación en un solo lugar, menos capas y componentes) para poder leerlo y modificarlo yo con facilidad.
 - Probé manualmente en el navegador crear, editar, eliminar, buscar, filtrar, ordenar, importar (incluidos duplicados y el ID 17) y la vista móvil.
 - Importé personajes reales desde SWAPI para revisar el mapeo con datos verdaderos.
 - Revisé el código para poder explicarlo y modificarlo.
@@ -205,7 +197,7 @@ Sí. Usé Claude (Claude Code) para generar la mayor parte del código: estructu
 - Cachear las respuestas de SWAPI (sobre todo los planetas) para no repetir consultas.
 - Importación masiva desde la interfaz, con una cola (jobs) y progreso.
 - Papelera para ver y restaurar personajes eliminados.
-- Ordenamiento también en la vista móvil, y pruebas end-to-end (Pest Browser o Playwright).
+- Reintentos automáticos cuando SWAPI falla por la red, y pruebas end-to-end (Pest Browser o Playwright).
 - Autenticación y permisos si la app se usara en producción.
 
 ### 8. Autoevaluación

@@ -1,5 +1,7 @@
 <script setup>
-import { onBeforeUnmount, watch } from 'vue';
+// Ventana modal genérica: título, contenido (slot) y botones (slot "pie").
+// Se cierra con la X, con Escape o haciendo clic fuera, salvo que esté "bloqueado".
+import { onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
     mostrar: { type: Boolean, default: false },
@@ -14,23 +16,11 @@ const cerrar = () => {
 };
 
 const alPresionarTecla = (evento) => {
-    if (evento.key === 'Escape') cerrar();
+    if (props.mostrar && evento.key === 'Escape') cerrar();
 };
 
-watch(
-    () => props.mostrar,
-    (visible) => {
-        document.body.classList.toggle('overflow-hidden', visible);
-        visible
-            ? window.addEventListener('keydown', alPresionarTecla)
-            : window.removeEventListener('keydown', alPresionarTecla);
-    },
-);
-
-onBeforeUnmount(() => {
-    document.body.classList.remove('overflow-hidden');
-    window.removeEventListener('keydown', alPresionarTecla);
-});
+onMounted(() => window.addEventListener('keydown', alPresionarTecla));
+onBeforeUnmount(() => window.removeEventListener('keydown', alPresionarTecla));
 </script>
 
 <template>

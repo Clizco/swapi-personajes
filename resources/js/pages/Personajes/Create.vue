@@ -14,7 +14,6 @@ defineProps({
             metodo="post"
             url="/personajes"
             texto-boton="Guardar"
-            texto-procesando="Guardando…"
         />
     </AppLayout>
 </template>

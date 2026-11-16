@@ -7,16 +7,14 @@ use App\Http\Requests\ImportarPersonajeRequest;
 use App\Http\Requests\PersonajeRequest;
 use App\Models\Personaje;
 use App\Services\PersonajeService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class PersonajeController extends Controller
 {
-    public function __construct(private readonly PersonajeService $personajes) {}
+    public function __construct(private PersonajeService $personajes) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request)
     {
         $filtros = $request->only(['buscar', 'genero', 'orden', 'direccion']);
 
@@ -27,22 +25,21 @@ class PersonajeController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create()
     {
         return Inertia::render('Personajes/Create', [
             'generos' => Personaje::GENEROS,
         ]);
     }
 
-    public function store(PersonajeRequest $request): RedirectResponse
+    public function store(PersonajeRequest $request)
     {
-        $personaje = $this->personajes->crear($request->validated());
+        $personaje = Personaje::create($request->validated());
 
-        return to_route('personajes.index')
-            ->with('success', "Personaje «{$personaje->nombre}» creado correctamente.");
+        return to_route('personajes.index')->with('success', "Personaje «{$personaje->nombre}» creado correctamente.");
     }
 
-    public function edit(Personaje $personaje): Response
+    public function edit(Personaje $personaje)
     {
         return Inertia::render('Personajes/Edit', [
             'personaje' => $personaje,
@@ -50,30 +47,28 @@ class PersonajeController extends Controller
         ]);
     }
 
-    public function update(PersonajeRequest $request, Personaje $personaje): RedirectResponse
+    public function update(PersonajeRequest $request, Personaje $personaje)
     {
-        $this->personajes->actualizar($personaje, $request->validated());
+        $personaje->update($request->validated());
 
-        return to_route('personajes.index')
-            ->with('success', "Personaje «{$personaje->nombre}» actualizado correctamente.");
+        return to_route('personajes.index')->with('success', "Personaje «{$personaje->nombre}» actualizado correctamente.");
     }
 
-    public function destroy(Personaje $personaje): RedirectResponse
+    public function destroy(Personaje $personaje)
     {
-        $this->personajes->eliminar($personaje);
+        $personaje->delete();
 
         return back()->with('success', "Personaje «{$personaje->nombre}» eliminado.");
     }
 
-    public function importar(ImportarPersonajeRequest $request): RedirectResponse
+    public function importar(ImportarPersonajeRequest $request)
     {
         try {
             $personaje = $this->personajes->importarDesdeSwapi($request->integer('swapi_id'));
-        } catch (SwapiException $excepcion) {
-            return back()->withErrors(['swapi_id' => $excepcion->getMessage()]);
+        } catch (SwapiException $error) {
+            return back()->withErrors(['swapi_id' => $error->getMessage()]);
         }
 
-        return to_route('personajes.index')
-            ->with('success', "Personaje «{$personaje->nombre}» importado desde SWAPI.");
+        return to_route('personajes.index')->with('success', "Personaje «{$personaje->nombre}» importado desde SWAPI.");
     }
 }

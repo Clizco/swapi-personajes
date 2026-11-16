@@ -4,7 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\SwapiService;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class SwapiServiceTest extends TestCase
 {
@@ -14,7 +14,7 @@ class SwapiServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->servicio = new SwapiService('https://swapi.py4e.com/api', 5);
+        $this->servicio = new SwapiService;
     }
 
     private function personaje(array $cambios = []): array
