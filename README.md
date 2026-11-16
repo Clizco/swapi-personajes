@@ -5,8 +5,8 @@ Aplicación web para gestionar personajes de Star Wars (CRUD completo) con impor
 ## Información del Candidato
 
 Nombre: Abraham Gonzalez
-Email: [TU EMAIL]
-Teléfono: [TU TELÉFONO]
+Email: gonzalezad06@gmail.com
+Teléfono: +34 642 12 61 07
 
 ## Requisitos del Sistema
 
@@ -207,4 +207,9 @@ Sí. Usé Claude (Claude Code) para generar la mayor parte del código: estructu
 
 ### 9. Tiempo invertido
 
-[X horas]
+Unas 2,5 horas de trabajo con la IA, repartidas en dos sesiones:
+
+- ~1 h 20 min (15/11): instalar PHP y Composer, generar el proyecto, probarlo en el navegador y en Docker con MySQL, y corregir los dos bugs que solo aparecían en Linux.
+- ~1 h (16/11): simplificar el código para que fuera más fácil de leer y modificar, volver a probarlo y actualizar este README.
+
+Aparte, tiempo revisando y estudiando el código para poder explicarlo.
