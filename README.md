@@ -20,7 +20,7 @@ Teléfono: +34 642 12 61 07
 1. Clonar repositorio
 
 ```bash
-git clone [tu-repo]
+git clone https://github.com/Clizco/swapi-personajes.git
 cd swapi-personajes
 ```
 
