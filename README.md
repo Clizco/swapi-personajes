@@ -175,21 +175,22 @@ Elegí no duplicar las reglas en JavaScript: la validación del cliente se puede
 
 ### 5. Mayor dificultad
 
-<!-- Revisa y ajusta esta respuesta con tus propias palabras -->
-Lo más delicado fueron los datos reales de SWAPI, que no siempre encajan con las reglas de la tabla: alturas `"unknown"`, la masa de Jabba como `"1,358"` (texto con coma y mayor al máximo de 500) y géneros como `hermaphrodite`. Lo resolví con funciones de conversión en `SwapiService` y pruebas unitarias para cada caso.
+Lo que más me costó fue que los datos reales de SWAPI no encajaban con las reglas que pedía la prueba. Esperaba números y me encontré con textos como `"unknown"`, géneros como `hermaphrodite` y el caso de Jabba, cuya masa viene como `"1,358"`: es texto, tiene una coma y además pasa el máximo de 500.
 
-También había que decidir cómo convivían el soft delete y el `swapi_id` único: si un personaje importado se elimina, el índice único impediría volver a importarlo. Lo resolví restaurando y actualizando el registro eliminado en lugar de crear uno nuevo.
+La duda era qué hacer con esos valores. Si guardaba 1358, al editar a Jabba el propio formulario lo rechazaría. Decidí que todo lo importado cumpla las mismas reglas que un registro manual: en `SwapiService` quito la coma y redondeo, y si el valor no es un número o queda fuera de rango lo guardo como `null`. Los géneros que no son `male` o `female` pasan a `n/a`. Cada caso raro tiene su prueba unitaria, así que si cambio la conversión me entero enseguida si rompo algo.
+
+Un problema parecido fue el soft delete: un personaje eliminado sigue ocupando su `swapi_id`, así que no se podía volver a importar. Lo resolví restaurando ese registro con los datos nuevos en vez de crear otro.
 
 ### 6. Uso de Inteligencia Artificial
 
-<!-- Revisa y ajusta esta respuesta con tus propias palabras -->
-Sí. Usé Claude (Claude Code) para generar la mayor parte del código: estructura del backend, servicios, componentes Vue, pruebas, Docker y este README. Para comprobar que funcionaba:
+Sí, y prefiero decirlo claro: usé Claude (Claude Code) para generar la mayor parte del código, incluidos el backend, los componentes Vue, las pruebas, Docker y buena parte de este README.
 
-- Corrí la suite de pruebas (47 tests) que cubre CRUD, validaciones y todos los errores de SWAPI.
-- Le pedí simplificar el código (validación en un solo lugar, menos capas y componentes) para poder leerlo y modificarlo yo con facilidad.
-- Probé manualmente en el navegador crear, editar, eliminar, buscar, filtrar, ordenar, importar (incluidos duplicados y el ID 17) y la vista móvil.
-- Importé personajes reales desde SWAPI para revisar el mapeo con datos verdaderos.
-- Revisé el código para poder explicarlo y modificarlo.
+Ya había usado algo de Laravel y Vue, así que lo usé como un compañero que escribe rápido mientras yo decidía y revisaba. Mi trabajo fue sobre todo:
+
+- **Revisar y dirigir.** La primera versión salió más grande de lo necesario, así que le pedí simplificarla: validación en un solo lugar, menos capas y menos componentes. Prefiero un código que pueda leer y cambiar yo mismo antes que uno que impresione pero no entienda del todo.
+- **Comprobar que funciona.** Probé en el navegador crear, editar, eliminar, buscar, filtrar, ordenar e importar (incluidos duplicados y el ID 17, que no existe en SWAPI), en escritorio y en móvil, e importé personajes reales para revisar el mapeo.
+- **Probar en un entorno parecido a producción.** Al correrlo en Docker con MySQL aparecieron dos errores que en Windows no se veían, y los corregimos.
+- **Entender el código.** Repasé cada archivo para poder explicarlo y modificarlo en vivo. Los 47 tests me dan confianza para hacer cambios sin miedo.
 
 ### 7. Mejoras futuras
 
@@ -202,8 +203,11 @@ Sí. Usé Claude (Claude Code) para generar la mayor parte del código: estructu
 
 ### 8. Autoevaluación
 
-<!-- Revisa y ajusta esta respuesta con tus propias palabras -->
-8/10. Cumple todos los requisitos obligatorios y la mayoría de los bonus, con buena cobertura de pruebas. Lo mejor es el manejo de errores de SWAPI y la separación en servicios, que hace el código fácil de probar y de cambiar. Me resto puntos porque gran parte del código lo generó una IA y porque quedan mejoras pendientes, como la caché de SWAPI y la papelera.
+8/10.
+
+Lo que creo que está bien: cumple todos los requisitos obligatorios y la mayoría de los bonus, cada error de SWAPI tiene un mensaje claro para el usuario, y el código es corto y directo, con cada regla en un solo lugar. Eso lo hace fácil de probar y de cambiar.
+
+Por qué no más: buena parte del código lo escribió una IA y todavía lo estoy terminando de interiorizar. Además, quedan mejoras que me hubiera gustado hacer, como cachear las consultas a SWAPI, una papelera para restaurar personajes eliminados y pruebas end-to-end.
 
 ### 9. Tiempo invertido
 
